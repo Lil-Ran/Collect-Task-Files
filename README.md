@@ -20,7 +20,7 @@
 
 ### GZ::CTF 平台
 
-（以下内容已重写）
+（本文档已重写以下内容）
 
 ``` plain
 usage: gzctf_attachment_downloader.py [-h] [-u URL] [-t TOKEN]
@@ -63,3 +63,5 @@ usage: gzctf_attachment_downloader.py [-h] [-u URL] [-t TOKEN]
   -r, --reverse
   --blockchain, --forensics, --hardware, --mobile, --ppc, --ai
 ```
+
+作者自己用的时候，通常不指定任何选项，然后在标准输入中再提供地址和 token。

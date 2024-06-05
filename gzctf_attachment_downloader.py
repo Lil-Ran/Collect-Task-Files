@@ -11,7 +11,10 @@ def main():
     get_challs(args)
 
 def get_challs(args):
-    headers = { 'Cookie': f'GZCTF_TOKEN={args.token}' }
+    headers = {
+        'Cookie': f'GZCTF_TOKEN={args.token}',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
+    }
 
     # get game title
     response = requests.get(args.url, headers=headers)
@@ -29,11 +32,11 @@ def get_challs(args):
         print('❌', f'Failed to get challenge list from {url_details}, status code: {response.status_code}')
         sys.exit(1)
 
-    response_json = response.json()
-    for group in response_json['challenges']:
+    response_data = response.json()
+    for group in response_data['challenges']:
         if group.lower() not in args.allowlist:
             continue
-        for object in response_json['challenges'][group]:
+        for object in response_data['challenges'][group]:
             try:
                 get_one_chall(args, object["id"], headers, game_title)
             except Exception as e:
@@ -52,16 +55,16 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
         print('❌', f'Failed to get challenge info from {url_chall_id}, status code: {response.status_code}')
         return
 
-    response_json = response.json()
-    name = response_json['title']
-    tag = response_json['tag'].lower()
-    remote_path = response_json['context']['url']         # may be relative or absolute
-    info_size = response_json['context']['fileSize']      # may be null
-    
+    response_data = response.json()
+    name = response_data['title']
+    tag = response_data['tag'].lower()
+    remote_path = response_data['context']['url']         # may be relative or absolute
+    info_size = response_data['context']['fileSize']      # may be null
+
     if remote_path is None:
         print('⏩', f'{tag}/{name}'.ljust(24), 'has no attachment')
         return
-    
+
     if info_size is not None and info_size > args.max_size:
         print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
         return
@@ -76,22 +79,22 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     headers_range['Range'] = 'bytes=0-10'
 
     response = requests.get(url_file_content, headers=headers_range)
-    if response.status_code != 200 and response.status_code != 206:
+    if response.status_code not in (200, 206):
         print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
         return
     
-    if response.headers.get('Content-Type', default='').split('/')[0] == 'text':
-        print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: {response.headers.get("Content-Type", default="")}')
+    if response.headers.get('Content-Type', '').startswith('text/'):
+        print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: {response.headers.get("Content-Type", "")}')
         # not return
 
-    raw_size = int(response.headers.get('Content-Range', default='0-0/-1').split('/')[-1])
+    raw_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
     if raw_size != -1 and raw_size > args.max_size:
         print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(raw_size, ",")} bytes)')
         return
     
     size = raw_size if info_size is None else max(info_size, raw_size)
 
-    raw_file_name = response.headers.get('Content-Disposition', default='filename=NONE') \
+    raw_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
                                     .split('filename=')[1] \
                                     .split(';')[0] \
                                     .strip('"')
@@ -144,7 +147,7 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     fp.close()
     print('\r✅',
           f'{tag}/{name}'.ljust(24),
-          f'wrote to {local_path} ({format(got_size, ",")} bytes)',
+          f'save to {local_path} ({format(got_size, ",")} bytes)',
           '[overwritten]' if exist_flag else '')
 
 def arg_parse():
@@ -153,18 +156,18 @@ def arg_parse():
     parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_TOKEN')
     parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
     parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which can generate "misc/sign in/attachment_deadbeef.zip"')
-    
+
     # {game}    received game title, e.g. "LRCTF 2024"
     # {tag}     "direction" in lowercase, e.g. "misc"
     # {chall}   received challenge name, e.g. "sign in"
     # {raw}     received file name, e.g. "attachment_deadbeef.zip"
 
-    parser.add_argument('-k', '--keep-spaces', action="store_true", help='''if specified, spaces in "--file-path" will not be replaced by '-' ''')
+    parser.add_argument('-k', '--keep-spaces', action="store_true", help='if specified, spaces in "--file-path" will not be replaced by "-"')
     parser.add_argument('-s', '--max-size', type=float, default=50.0, help='max file size in MB, larger than this will be skipped, default is 50.0, set to 0 to disable')
     parser.add_argument('-o', '--overwrite', action="store_true", help='if specified, existing files will be replaced instead of skipped')
-    
+
     tag_group = parser.add_argument_group('tag options, default is ALL, you can specify like -mwp')
-    tag_group.add_argument('-E', '--except-mode', action="store_true", help='-p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
+    tag_group.add_argument('-E', '--except-mode', action="store_true", help='e.g. -p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
     tag_group.add_argument('-m', '--misc', action='store_true')
     tag_group.add_argument('-c', '--crypto', action='store_true')
     tag_group.add_argument('-p', '--pwn', action='store_true')
@@ -189,7 +192,7 @@ def arg_parse():
     # https://example.com/api/game/1
 
     if args.token is None:
-        args.token = input('\nPaste GZCTF_TOKEN cookie value here: ').strip()
+        args.token = input('\nPaste GZCTF_TOKEN Cookie value here: ').strip()
     args.token = args.token.replace('GZCTF_TOKEN=', '').strip()
 
     args.max_size = args.max_size * 1024 * 1024 if args.max_size > 0 else float('inf')
