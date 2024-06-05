@@ -150,21 +150,21 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
 def arg_parse():
     parser = argparse.ArgumentParser(description='A GZ::CTF attachment downloader.')
     parser.add_argument('-u', '--url', type=str, help='GZ::CTF game URL, e.g. https://example.com/games/1/challenges or https://example.com/games/1')
-    parser.add_argument('-t', '--token', type=str, help='value of cookie GZCTF_TOKEN')
-    parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which generates "./LRCTF 2024"')
-    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which generates "misc/sign in/attachment_deadbeef.zip"')
+    parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_TOKEN')
+    parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
+    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which can generate "misc/sign in/attachment_deadbeef.zip"')
     
     # {game}    received game title, e.g. "LRCTF 2024"
     # {tag}     "direction" in lowercase, e.g. "misc"
     # {chall}   received challenge name, e.g. "sign in"
     # {raw}     received file name, e.g. "attachment_deadbeef.zip"
 
-    parser.add_argument('-k', '--keep-spaces', action="store_true", help='''if specified, "--file-path" with spaces will not be replaced by '-' ''')
+    parser.add_argument('-k', '--keep-spaces', action="store_true", help='''if specified, spaces in "--file-path" will not be replaced by '-' ''')
     parser.add_argument('-s', '--max-size', type=float, default=50.0, help='max file size in MB, larger than this will be skipped, default is 50.0, set to 0 to disable')
     parser.add_argument('-o', '--overwrite', action="store_true", help='if specified, existing files will be replaced instead of skipped')
     
     tag_group = parser.add_argument_group('tag options, default is ALL, you can specify like -mwp')
-    tag_group.add_argument('-E', '--except-mode', action="store_true", help='-w means ONLY download web, while -E -w means download everything else EXCEPT web')
+    tag_group.add_argument('-E', '--except-mode', action="store_true", help='-p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
     tag_group.add_argument('-m', '--misc', action='store_true')
     tag_group.add_argument('-c', '--crypto', action='store_true')
     tag_group.add_argument('-p', '--pwn', action='store_true')
