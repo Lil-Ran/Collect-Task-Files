@@ -83,8 +83,8 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
         print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
         return
     
-    if response.headers.get('Content-Type', '').startswith('text/'):
-        print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: {response.headers.get("Content-Type", "")}')
+    if 'text/html' in response.headers.get('Content-Type', ''):
+        print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
         # not return
 
     raw_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
@@ -155,7 +155,7 @@ def arg_parse():
     parser.add_argument('-u', '--url', type=str, help='GZ::CTF game URL, e.g. https://example.com/games/1/challenges or https://example.com/games/1')
     parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_TOKEN')
     parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
-    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which can generate "misc/sign in/attachment_deadbeef.zip"')
+    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{raw}" to keep extension suffix')
 
     # {game}    received game title, e.g. "LRCTF 2024"
     # {tag}     "direction" in lowercase, e.g. "misc"
