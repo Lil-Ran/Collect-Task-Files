@@ -87,26 +87,26 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
         print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
         # not return
 
-    raw_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
-    if raw_size != -1 and raw_size > args.max_size:
-        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(raw_size, ",")} bytes)')
+    origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+    if origin_size != -1 and origin_size > args.max_size:
+        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
         return
     
-    size = raw_size if info_size is None else max(info_size, raw_size)
+    size = origin_size if info_size is None else max(info_size, origin_size)
 
-    raw_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
+    origin_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
                                     .split('filename=')[1] \
                                     .split(';')[0] \
                                     .strip('"')
-    if raw_file_name == 'NONE':
-        raw_file_name = url_file_content.split('/')[-1]
+    if origin_file_name == 'NONE':
+        origin_file_name = url_file_content.split('/')[-1]
 
     # format path string, check file existence, and create directory
 
     file_path = args.file_path \
                     .strip() \
                     .lstrip('/\\') \
-                    .format(game=game_title, tag=tag, chall=name, raw=raw_file_name)
+                    .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
     if not args.keep_spaces:
         file_path = re.sub(r'\s+', '-', file_path)
     file_path = re.sub(r'[:*?"<>|]', '_', file_path)
@@ -114,7 +114,7 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     root_directory = args.root_directory \
                          .strip() \
                          .rstrip('/\\') \
-                         .format(game=game_title, tag=tag, chall=name, raw=raw_file_name)
+                         .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
     root_directory = re.sub(r'[*?"<>|]', '_', root_directory)
     
     local_path = f'{root_directory}/{file_path}'
@@ -155,12 +155,12 @@ def arg_parse():
     parser.add_argument('-u', '--url', type=str, help='GZ::CTF game URL, e.g. https://example.com/games/1/challenges or https://example.com/games/1')
     parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_TOKEN')
     parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
-    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{raw}', help='style of file path, default is {tag}/{chall}/{raw}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{raw}" to keep extension suffix')
+    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{origin}', help='style of file path, default is {tag}/{chall}/{origin}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{origin}" to keep extension suffix')
 
     # {game}    received game title, e.g. "LRCTF 2024"
     # {tag}     "direction" in lowercase, e.g. "misc"
     # {chall}   received challenge name, e.g. "sign in"
-    # {raw}     received file name, e.g. "attachment_deadbeef.zip"
+    # {origin}  received file name, e.g. "attachment_deadbeef.zip"
 
     parser.add_argument('-k', '--keep-spaces', action="store_true", help='if specified, spaces in "--file-path" will not be replaced by "-"')
     parser.add_argument('-s', '--max-size', type=float, default=50.0, help='max file size in MB, larger than this will be skipped, default is 50.0, set to 0 to disable')

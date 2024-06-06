@@ -40,9 +40,9 @@ usage: gzctf_attachment_downloader.py [-h] [-u URL] [-t TOKEN]
   -d ROOT_DIRECTORY, --root-directory ROOT_DIRECTORY
                         默认是 `pwd`/{game}，这样可以得到 "./LRCTF 2024"
   -f FILE_PATH, --file-path FILE_PATH
-                        文件路径格式，默认是 {tag}/{chall}/{raw}，
+                        文件路径格式，默认是 {tag}/{chall}/{origin}，
                         这样可以得到 "misc/sign in/attachment_deadbeef.zip"，
-                        以 {raw} 结尾才能保留扩展名
+                        以 {origin} 结尾才能保留扩展名
   -k, --keep-spaces     如果指定，"--file-path" 中的空格就不会被替换为 '-'
   -s MAX_SIZE, --max-size MAX_SIZE
                         最大文件大小，以 MB 计，超过的文件会被跳过，
@@ -53,7 +53,7 @@ usage: gzctf_attachment_downloader.py [-h] [-u URL] [-t TOKEN]
   {game}    从平台接收到的比赛标题，例如 "LRCTF 2024"
   {tag}     小写的赛题方向，例如 "misc"
   {chall}   从平台接收到的赛题名称，例如 "sign in"
-  {raw}     从服务器接收到的文件名，例如 "attachment_deadbeef.zip"
+  {origin}  从服务器接收到的文件名，例如 "attachment_deadbeef.zip"
 
 标签（方向）选项，默认是全部，可以像 -mwp 这样指定：
   -E, --except-mode     例如 -p 将只下载 pwn，而 -E -p 将除了 pwn 其他都下载
