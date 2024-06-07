@@ -140,14 +140,14 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
             got_size += len(chunk)
             print('\r📥',
                   f'{tag}/{name}'.ljust(24),
-                  '>' * min(got_size*40//size, 40) + '_' * min(40-got_size*40//size, 40),
+                  '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
                   f'{got_size}/{size} bytes',
                   end='')
 
     fp.close()
     print('\r✅',
           f'{tag}/{name}'.ljust(24),
-          f'save to {local_path} ({format(got_size, ",")} bytes)',
+          f'saved to {local_path} ({format(got_size, ",")} bytes)',
           '[overwritten]' if exist_flag else '')
 
 def arg_parse():
