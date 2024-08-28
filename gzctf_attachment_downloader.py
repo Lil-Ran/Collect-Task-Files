@@ -3,7 +3,13 @@ import os
 import re
 import requests
 import sys
+from urllib3.exceptions import NewConnectionError, MaxRetryError
 # import traceback
+
+class RemoteURLPointsToHTML(Exception):
+    def __init__(self, message="The remote URL points to an HTML document"):
+        self.message = message
+        super().__init__(self.message)
 
 def main():
     args = arg_parse()
@@ -39,6 +45,12 @@ def get_challs(args):
         for object in response_data['challenges'][group]:
             try:
                 get_one_chall(args, object["id"], headers, game_title)
+            except (MaxRetryError, NewConnectionError, ConnectionError, OSError):
+                print('❌', f'Failed to get challenge {object["id"]} file, try to save the download URL...')
+                get_one_chall_download_error(args, object["id"], headers, game_title)
+            except RemoteURLPointsToHTML:
+                print('❌','The remote URL points to an HTML document, try to save the download URL...')
+                get_one_chall_download_error(args, object["id"], headers, game_title)
             except Exception as e:
                 print('❌', f'Failed to get challenge {object["id"]}, error: {e}')
                 # traceback.print_exc()
@@ -60,49 +72,57 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     tag = response_data['tag'].lower()
     remote_path = response_data['context']['url']         # may be relative or absolute
     info_size = response_data['context']['fileSize']      # may be null
+    content = response_data['content']
+    chal_type = response_data['type']
+    content += f'\n\nChallenge Type: {chal_type}'
+    cant_download = False
 
     if remote_path is None:
         print('⏩', f'{tag}/{name}'.ljust(24), 'has no attachment')
-        return
+        content+=f' \n\nthis challenge has no attachment'
+        cant_download = True
 
     if info_size is not None and info_size > args.max_size:
         print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
-        return
-    
+        content+=f'\n\nthis attachment is too large ({format(info_size, ",")} bytes), try use the url in download_URL.txt'
+        cant_download = True
     # get attachment file name and size
+    if cant_download == False:
+        
+        if re.match(r'^https?://', remote_path):
+            url_file_content = remote_path
+        else:
+            url_file_content = re.sub(r'/api/game/.*$', remote_path, args.url)
+        headers_range = headers.copy()
+        headers_range['Range'] = 'bytes=0-10'
 
-    if re.match(r'^https?://', remote_path):
-        url_file_content = remote_path
-    else:
-        url_file_content = re.sub(r'/api/game/.*$', remote_path, args.url)
-    headers_range = headers.copy()
-    headers_range['Range'] = 'bytes=0-10'
+        response = requests.get(url_file_content, headers=headers_range)
+        if response.status_code not in (200, 206):
+            print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
+            return
+        
+        if 'text/html' in response.headers.get('Content-Type', ''):
+            print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
+            # not return
+            raise RemoteURLPointsToHTML
 
-    response = requests.get(url_file_content, headers=headers_range)
-    if response.status_code not in (200, 206):
-        print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
-        return
-    
-    if 'text/html' in response.headers.get('Content-Type', ''):
-        print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
-        # not return
+        origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+        if origin_size != -1 and origin_size > args.max_size:
+            print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
+            return
+        
+        size = origin_size if info_size is None else max(info_size, origin_size)
 
-    origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
-    if origin_size != -1 and origin_size > args.max_size:
-        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
-        return
-    
-    size = origin_size if info_size is None else max(info_size, origin_size)
-
-    origin_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
-                                    .split('filename=')[1] \
-                                    .split(';')[0] \
-                                    .strip('"')
-    if origin_file_name == 'NONE':
-        origin_file_name = url_file_content.split('/')[-1]
+        origin_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
+                                        .split('filename=')[1] \
+                                        .split(';')[0] \
+                                        .strip('"')
+        if origin_file_name == 'NONE':
+            origin_file_name = url_file_content.split('/')[-1]
 
     # format path string, check file existence, and create directory
-
+    if cant_download == True:
+        origin_file_name = "tmp_file_name"
     file_path = args.file_path \
                     .strip() \
                     .lstrip('/\\') \
@@ -128,8 +148,12 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     if not os.path.exists(local_dir):
         os.makedirs(local_dir)
 
+    dir_path = '/'.join(file_path.split('/')[:-1])
+    with open(f'{root_directory}/{dir_path}/description.txt', 'w', encoding='utf-8') as f:
+        f.write(content)
     # download attachment
-
+    if cant_download == True:
+        return
     fp = open(local_path, 'wb')
 
     response = requests.get(url_file_content, headers=headers, stream=True)
@@ -148,6 +172,108 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     print('\r✅',
           f'{tag}/{name}'.ljust(24),
           f'saved to {local_path} ({format(got_size, ",")} bytes)',
+          '[overwritten]' if exist_flag else '')
+
+def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
+
+    # get attachment info, including URL
+    url_chall_id = f'{args.url}/challenges/{id}'
+    response = requests.get(url_chall_id, headers=headers)
+    if response.status_code != 200:
+        print('❌', f'Failed to get challenge info from {url_chall_id}, status code: {response.status_code}')
+        return
+
+    response_data = response.json()
+    name = response_data['title']
+    tag = response_data['tag'].lower()
+    remote_path = response_data['context']['url']         # may be relative or absolute
+    info_size = response_data['context']['fileSize']      # may be null
+    content = response_data['content']
+    chal_type = response_data['type']
+    content += f'\n\nChallenge Type: {chal_type}'
+    cant_download = True
+
+    if remote_path is None:
+        print('⏩', f'{tag}/{name}'.ljust(24), 'has no attachment')
+        content+=f' \n\nthis challenge has no attachment'
+        cant_download = True
+
+    if info_size is not None and info_size > args.max_size:
+        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
+        content+=f'\n\nthis attachment is too large ({format(info_size, ",")} bytes), try use the url in download_URL.txt'
+        cant_download = True
+    # get attachment file name and size
+
+    if cant_download == False:
+        if re.match(r'^https?://', remote_path):
+            url_file_content = remote_path
+        else:
+            url_file_content = re.sub(r'/api/game/.*$', remote_path, args.url)
+        headers_range = headers.copy()
+        headers_range['Range'] = 'bytes=0-10'
+
+        response = requests.get(url_file_content, headers=headers_range)
+        if response.status_code not in (200, 206):
+            print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
+            return
+        
+        if 'text/html' in response.headers.get('Content-Type', ''):
+            print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
+            # not return
+
+        origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+        if origin_size != -1 and origin_size > args.max_size:
+            print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
+            return
+        
+        size = origin_size if info_size is None else max(info_size, origin_size)
+
+        origin_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
+                                        .split('filename=')[1] \
+                                        .split(';')[0] \
+                                        .strip('"')
+        if origin_file_name == 'NONE':
+            origin_file_name = url_file_content.split('/')[-1]
+
+    # format path string, check file existence, and create directory
+
+    if cant_download == True:
+        origin_file_name = "tmp_file_name"
+    file_path = args.file_path \
+                    .strip() \
+                    .lstrip('/\\') \
+                    .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+    if not args.keep_spaces:
+        file_path = re.sub(r'\s+', '-', file_path)
+    file_path = re.sub(r'[:*?"<>|]', '_', file_path)
+
+    root_directory = args.root_directory \
+                         .strip() \
+                         .rstrip('/\\') \
+                         .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+    root_directory = re.sub(r'[*?"<>|]', '_', root_directory)
+    
+    local_path = f'{root_directory}/{file_path}'
+
+    exist_flag = os.path.exists(local_path)
+    if exist_flag and not args.overwrite:
+        print('⏩', f'{tag}/{name}'.ljust(24), f'already exists: {local_path}')
+        return
+
+    local_dir = os.path.dirname(local_path)
+    if not os.path.exists(local_dir):
+        os.makedirs(local_dir)
+    # print(file_path)
+    save_dir = f'{root_directory}/' + '/'.join(file_path.split('/')[:-1])
+    # dir_path = 
+    with open(f'{save_dir}/description.txt', 'w', encoding='utf-8') as f:
+        f.write(content)
+    with open(f'{save_dir}/download_URL.txt', 'w', encoding='utf-8') as f:
+        f.write(remote_path)
+    # download attachment
+    print('\r✅',
+          f'{tag}/{name}'.ljust(24),
+          f'saved download URL to {save_dir}/download_URL.txt',
           '[overwritten]' if exist_flag else '')
 
 def arg_parse():
