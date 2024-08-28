@@ -162,11 +162,17 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
         if chunk:
             fp.write(chunk)
             got_size += len(chunk)
-            print('\r📥',
-                  f'{tag}/{name}'.ljust(24),
-                  '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
-                  f'{got_size}/{size} bytes',
-                  end='')
+            if size != -1:
+                print('\r📥',
+                    f'{tag}/{name}'.ljust(24),
+                    '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
+                    f'{got_size}/{size} bytes',
+                    end='')
+            else:
+                print('\r📥',
+                    f'{tag}/{name}'.ljust(24),
+                    '[in progress]',
+                    end='')
 
     fp.close()
     print('\r✅',
