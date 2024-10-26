@@ -18,7 +18,7 @@ def main():
 
 def get_challs(args):
     headers = {
-        'Cookie': f'GZCTF_TOKEN={args.token}',
+        'Cookie': f'GZCTF_Token={args.token}',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
     }
 
@@ -69,7 +69,7 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
 
     response_data = response.json()
     name = response_data['title']
-    tag = response_data['tag'].lower()
+    category = (response_data.get('category') or response_data.get('tag')).lower()
     remote_path = response_data['context']['url']         # may be relative or absolute
     info_size = response_data['context']['fileSize']      # may be null
     content = response_data['content']
@@ -78,12 +78,12 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     cant_download = False
 
     if remote_path is None:
-        print('⏩', f'{tag}/{name}'.ljust(24), 'has no attachment')
+        print('⏩', f'{category}/{name}'.ljust(24), 'has no attachment')
         content+=f' \n\nthis challenge has no attachment'
         cant_download = True
 
     if info_size is not None and info_size > args.max_size:
-        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
+        print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
         content+=f'\n\nthis attachment is too large ({format(info_size, ",")} bytes), try use the url in download_URL.txt'
         cant_download = True
     # get attachment file name and size
@@ -98,17 +98,17 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
 
         response = requests.get(url_file_content, headers=headers_range)
         if response.status_code not in (200, 206):
-            print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
+            print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
             return
         
         if 'text/html' in response.headers.get('Content-Type', ''):
-            print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
+            print('❔', f'{category}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
             # not return
             raise RemoteURLPointsToHTML
 
         origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
         if origin_size != -1 and origin_size > args.max_size:
-            print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
+            print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
             return
         
         size = origin_size if info_size is None else max(info_size, origin_size)
@@ -126,7 +126,7 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     file_path = args.file_path \
                     .strip() \
                     .lstrip('/\\') \
-                    .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+                    .format(game=game_title, tag=category, category=category, chall=name, origin=origin_file_name)
     if not args.keep_spaces:
         file_path = re.sub(r'\s+', '-', file_path)
     file_path = re.sub(r'[:*?"<>|]', '_', file_path)
@@ -134,14 +134,14 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
     root_directory = args.root_directory \
                          .strip() \
                          .rstrip('/\\') \
-                         .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+                         .format(game=game_title, tag=category, category=category, chall=name, origin=origin_file_name)
     root_directory = re.sub(r'[*?"<>|]', '_', root_directory)
     
     local_path = f'{root_directory}/{file_path}'
 
     exist_flag = os.path.exists(local_path)
     if exist_flag and not args.overwrite:
-        print('⏩', f'{tag}/{name}'.ljust(24), f'already exists: {local_path}')
+        print('⏩', f'{category}/{name}'.ljust(24), f'already exists: {local_path}')
         return
 
     local_dir = os.path.dirname(local_path)
@@ -164,19 +164,19 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
             got_size += len(chunk)
             if size != -1:
                 print('\r📥',
-                    f'{tag}/{name}'.ljust(24),
+                    f'{category}/{name}'.ljust(24),
                     '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
                     f'{got_size}/{size} bytes',
                     end='')
             else:
                 print('\r📥',
-                    f'{tag}/{name}'.ljust(24),
+                    f'{category}/{name}'.ljust(24),
                     '[in progress]',
                     end='')
 
     fp.close()
     print('\r✅',
-          f'{tag}/{name}'.ljust(24),
+          f'{category}/{name}'.ljust(24),
           f'saved to {local_path} ({format(got_size, ",")} bytes)',
           '[overwritten]' if exist_flag else '')
 
@@ -191,7 +191,7 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
 
     response_data = response.json()
     name = response_data['title']
-    tag = response_data['tag'].lower()
+    category = (response_data.get('category') or response_data.get('tag')).lower()
     remote_path = response_data['context']['url']         # may be relative or absolute
     info_size = response_data['context']['fileSize']      # may be null
     content = response_data['content']
@@ -200,12 +200,12 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
     cant_download = True
 
     if remote_path is None:
-        print('⏩', f'{tag}/{name}'.ljust(24), 'has no attachment')
+        print('⏩', f'{category}/{name}'.ljust(24), 'has no attachment')
         content+=f' \n\nthis challenge has no attachment'
         cant_download = True
 
     if info_size is not None and info_size > args.max_size:
-        print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
+        print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(info_size, ",")} bytes)')
         content+=f'\n\nthis attachment is too large ({format(info_size, ",")} bytes), try use the url in download_URL.txt'
         cant_download = True
     # get attachment file name and size
@@ -220,16 +220,16 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
 
         response = requests.get(url_file_content, headers=headers_range)
         if response.status_code not in (200, 206):
-            print('❌', f'{tag}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
+            print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
             return
         
         if 'text/html' in response.headers.get('Content-Type', ''):
-            print('❔', f'{tag}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
+            print('❔', f'{category}/{name}'.ljust(24), f'Content-Type: text/html, URL: {url_file_content}')
             # not return
 
         origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
         if origin_size != -1 and origin_size > args.max_size:
-            print('🤯', f'{tag}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
+            print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
             return
         
         size = origin_size if info_size is None else max(info_size, origin_size)
@@ -248,7 +248,7 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
     file_path = args.file_path \
                     .strip() \
                     .lstrip('/\\') \
-                    .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+                    .format(game=game_title, tag=category, category=category, chall=name, origin=origin_file_name)
     if not args.keep_spaces:
         file_path = re.sub(r'\s+', '-', file_path)
     file_path = re.sub(r'[:*?"<>|]', '_', file_path)
@@ -256,14 +256,14 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
     root_directory = args.root_directory \
                          .strip() \
                          .rstrip('/\\') \
-                         .format(game=game_title, tag=tag, chall=name, origin=origin_file_name)
+                         .format(game=game_title, tag=category, category=category, chall=name, origin=origin_file_name)
     root_directory = re.sub(r'[*?"<>|]', '_', root_directory)
     
     local_path = f'{root_directory}/{file_path}'
 
     exist_flag = os.path.exists(local_path)
     if exist_flag and not args.overwrite:
-        print('⏩', f'{tag}/{name}'.ljust(24), f'already exists: {local_path}')
+        print('⏩', f'{category}/{name}'.ljust(24), f'already exists: {local_path}')
         return
 
     local_dir = os.path.dirname(local_path)
@@ -278,27 +278,27 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
         f.write(remote_path)
     # download attachment
     print('\r✅',
-          f'{tag}/{name}'.ljust(24),
+          f'{category}/{name}'.ljust(24),
           f'saved download URL to {save_dir}/download_URL.txt',
           '[overwritten]' if exist_flag else '')
 
 def arg_parse():
     parser = argparse.ArgumentParser(description='A GZ::CTF attachment downloader.')
     parser.add_argument('-u', '--url', type=str, help='GZ::CTF game URL, e.g. https://example.com/games/1/challenges or https://example.com/games/1')
-    parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_TOKEN')
+    parser.add_argument('-t', '--token', type=str, help='value of Cookie GZCTF_Token')
     parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
-    parser.add_argument('-f', '--file-path', type=str, default='{tag}/{chall}/{origin}', help='style of file path, default is {tag}/{chall}/{origin}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{origin}" to keep extension suffix')
+    parser.add_argument('-f', '--file-path', type=str, default='{category}/{chall}/{origin}', help='style of file path, default is {category}/{chall}/{origin}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{origin}" to keep extension suffix')
 
-    # {game}    received game title, e.g. "LRCTF 2024"
-    # {tag}     "direction" in lowercase, e.g. "misc"
-    # {chall}   received challenge name, e.g. "sign in"
-    # {origin}  received file name, e.g. "attachment_deadbeef.zip"
+    # {game}      received game title, e.g. "BaseCTF 2024"
+    # {category}  "direction" in lowercase, e.g. "misc"
+    # {chall}     received challenge name, e.g. "sign in"
+    # {origin}    received file name, e.g. "attachment_deadbeef.zip"
 
     parser.add_argument('-k', '--keep-spaces', action="store_true", help='if specified, spaces in "--file-path" will not be replaced by "-"')
     parser.add_argument('-s', '--max-size', type=float, default=50.0, help='max file size in MB, larger than this will be skipped, default is 50.0, set to 0 to disable')
     parser.add_argument('-o', '--overwrite', action="store_true", help='if specified, existing files will be replaced instead of skipped')
 
-    tag_group = parser.add_argument_group('tag options, default is ALL, you can specify like -mwp')
+    tag_group = parser.add_argument_group('category options, default is ALL, you can specify like -mwp')
     tag_group.add_argument('-E', '--except-mode', action="store_true", help='e.g. -p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
     tag_group.add_argument('-m', '--misc', action='store_true')
     tag_group.add_argument('-c', '--crypto', action='store_true')
@@ -324,21 +324,21 @@ def arg_parse():
     # https://example.com/api/game/1
 
     if args.token is None:
-        args.token = input('\nPaste GZCTF_TOKEN Cookie value here: ').strip()
-    args.token = args.token.replace('GZCTF_TOKEN=', '').strip()
+        args.token = input('\nPaste GZCTF_Token Cookie value here: ').strip()
+    args.token = args.token.replace('GZCTF_Token=', '').strip()
 
     args.max_size = args.max_size * 1024 * 1024 if args.max_size > 0 else float('inf')
 
-    tag_list = ['misc', 'crypto', 'pwn', 'web', 'reverse', 'blockchain', 'forensics', 'hardware', 'mobile', 'ppc', 'ai']
-    allowlist = tag_list.copy()
-    if any(getattr(args, tag) for tag in tag_list):
-        for tag in tag_list:
-            if bool(getattr(args, tag)) ^ (not args.except_mode):
-                allowlist.remove(tag)
+    category_list = ['misc', 'crypto', 'pwn', 'web', 'reverse', 'blockchain', 'forensics', 'hardware', 'mobile', 'ppc', 'ai']
+    allowlist = category_list.copy()
+    if any(getattr(args, category) for category in category_list):
+        for category in category_list:
+            if bool(getattr(args, category)) ^ (not args.except_mode):
+                allowlist.remove(category)
     
     args.allowlist = allowlist
-    # for tag in tag_list:
-    #     delattr(args, tag)
+    # for category in category_list:
+    #     delattr(args, category)
 
     return args
 
