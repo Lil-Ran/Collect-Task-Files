@@ -15,30 +15,32 @@ def main():
 
 def get_challs(args):
     headers = {
-        'Authorization': f'Bearer {args.token}',
+        'Authorization': f'JWT {args.token}',
+        'Cookie': f'language=zh-CN; cr_jwttoken={args.token}',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
+        'Referer': f'{args.url}/ContestPage'.replace('api/ct/web/jeopardy_race/race/', 'page/mg/ct/contest/flag/'),
     }
 
     # get game title
-    response = requests.get(args.url, headers=headers)
+    response = requests.get(f'{args.url}/base/', headers=headers)
     if response.status_code != 200:
-        print('❌', f'Failed to get game title from {args.url}, status code: {response.status_code}')
+        print('❌', f'Failed to get game title from {args.url}/base/, status code: {response.status_code}')
         sys.exit(1)
 
     game_info = response.json()
-    game_title = game_info['name']
+    game_title = game_info['data']['race_name']
 
     # get challenge list
-    url_details = args.url + '/challenge?'
+    url_details = f'{args.url}/checkpoints/?direction='
     response = requests.get(url_details, headers=headers)
     if response.status_code != 200:
         print('❌', f'Failed to get challenge list from {url_details}, status code: {response.status_code}')
         sys.exit(1)
 
     response_data = response.json()
-    for object in response_data[0]:
+    for object in response_data['data']['list']:
         try:
-            get_one_chall(args, object['id'], headers, game_title)
+            get_one_chall(args, object, headers, game_title)
         except (MaxRetryError, NewConnectionError, ConnectionError, OSError):
             print('❌', f'Failed to get challenge {object['name']} file')
         except Exception as e:
@@ -77,112 +79,99 @@ def get_absolute_path(args, game_title: str, category: str, chall_name: str, ori
     return local_path, exist_flag
 
 
-def get_one_chall(args, id: int, headers: dict, game_title: str):
+def get_one_chall(args, object, headers: dict, game_title: str):
+    id = object['resource_id']
 
     # get attachment info, including URL
     
-    url_chall_id = f'{args.url}/challenge/{id}'
+    url_chall_id = f'{args.url}/checkpoints/{id}/'
     response = requests.get(url_chall_id, headers=headers)
     if response.status_code != 200:
         print('❌', f'Failed to get challenge info from {url_chall_id}, status code: {response.status_code}')
         return
 
-    response_data = response.json()
+    response_data = response.json()['data']
     name = response_data['name']
-    category = [t['name'].lower() for t in response_data['tag'] if t['primary'] == True][0]
-    content = response_data['content']
+    category = object['direction'].lower()
+    content = response_data['desc']
 
     if category not in args.allowlist:
         return
 
-    url_chall_file = f'{args.url}/challenge/{id}/file?'
-    response = requests.get(url_chall_file, headers=headers)
-    if response.status_code != 200:
-        print('❌', f'Failed to get challenge file info from {url_chall_file}, status code: {response.status_code}')
-        return
-
-    response_data = response.json()
-
     # challenge README.md content
-
     file_path, exist_flag = get_absolute_path(args, game_title, category, name, 'README.md')
     if file_path:
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
-    if len(response_data) == 0:
+    remote_path = response_data['attachment'].get('url', None)
+    if remote_path is None:
         print('⏩', f'{category}/{name}'.ljust(24), 'has no attachment')
         return
 
-    # foreach attachment file
+    url_file_content = re.sub(r'/api/ct/.*$', remote_path, args.url)
 
-    for file in response_data:
-        url_file_content = f'{args.url}/challenge/{id}/file?{'&'.join(f"{k}={v}" for k, v in file.items())}'
+    origin_file_name = response_data['attachment'].get('name', None)
+    if origin_file_name is None:
+        origin_file_name = url_file_content.split('/')[-1]
 
-        # get attachment file name and size
-        headers_range = headers.copy()
-        headers_range['Range'] = 'bytes=0-10'
+    # get attachment file size
+    headers_range = headers.copy()
+    headers_range['Range'] = 'bytes=0-10'
 
-        response = requests.get(url_file_content, headers=headers_range, stream=True)
-        if response.status_code not in (200, 206):
-            print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
-            continue
+    response = requests.get(url_file_content, headers=headers_range, stream=True)
+    if response.status_code not in (200, 206):
+        print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
+        return
 
-        origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
-        if origin_size == -1:
-            try:
-                origin_size = int(response.headers['Content-Length'])
-            except:
-                origin_size = -1
-        if origin_size != -1 and origin_size > args.max_size:
-            print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
-            continue
+    origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+    if origin_size == -1:
+        try:
+            origin_size = int(response.headers['Content-Length'])
+        except:
+            origin_size = -1
+    if origin_size != -1 and origin_size > args.max_size:
+        print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
+        return
 
-        size = origin_size
+    size = origin_size
 
-        origin_file_name = response.headers.get('Content-Disposition', 'filename=NONE') \
-                                        .split('filename=')[1] \
-                                        .split(';')[0] \
-                                        .strip('"')
-        if origin_file_name == 'NONE':
-            origin_file_name = file.get('file', url_file_content.split('/')[-1])
+    local_path, exist_flag = get_absolute_path(args, game_title, category, name, origin_file_name)
+    if local_path is None:
+        return
 
-        local_path, exist_flag = get_absolute_path(args, game_title, category, name, origin_file_name)
-        if local_path is None:
-            continue
+    # download attachment
+    fp = open(local_path, 'wb')
 
-        # download attachment
-        fp = open(local_path, 'wb')
+    response = requests.get(url_file_content, headers=headers, stream=True)
+    got_size = 0
+    for chunk in response.iter_content(chunk_size=65536):
+        if chunk:
+            fp.write(chunk)
+            got_size += len(chunk)
+            if size != -1:
+                print('\r📥',
+                    f'{category}/{name}'.ljust(24),
+                    '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
+                    f'{got_size}/{size} bytes',
+                    end='')
+            else:
+                print('\r📥',
+                    f'{category}/{name}'.ljust(24),
+                    '[in progress]',
+                    end='')
 
-        response = requests.get(url_file_content, headers=headers, stream=True)
-        got_size = 0
-        for chunk in response.iter_content(chunk_size=65536):
-            if chunk:
-                fp.write(chunk)
-                got_size += len(chunk)
-                if size != -1:
-                    print('\r📥',
-                        f'{category}/{name}'.ljust(24),
-                        '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
-                        f'{got_size}/{size} bytes',
-                        end='')
-                else:
-                    print('\r📥',
-                        f'{category}/{name}'.ljust(24),
-                        '[in progress]',
-                        end='')
-
-        fp.close()
-        print('\r✅',
-            f'{category}/{name}'.ljust(24),
-            f'saved to {local_path} ({format(got_size, ",")} bytes)',
-            '[overwritten]' if exist_flag else '')
+    fp.close()
+    print('\r✅',
+        f'{category}/{name}'.ljust(24),
+        f'saved to {local_path} ({format(got_size, ",")} bytes)',
+        '[overwritten]' if exist_flag else '')
 
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description='A Ret2Shell attachment downloader.')
-    parser.add_argument('-u', '--url', type=str, help='Ret2Shell game URL, e.g. https://example.com/games/1/challenges or https://example.com/games/1')
-    parser.add_argument('-t', '--token', type=str, help='value of Local Storage account.token')
+    parser = argparse.ArgumentParser(description='A CyberPeace (xctf.org.cn) attachment downloader.')
+    parser.add_argument('-u', '--url', type=str, help='CyberPeace game URL, e.g. https://challenge.xctf.org.cn/page/mg/ct/contest/flag/0123456789abcdef0123456789abcdef/ContestPage')
+    parser.add_argument('-t', '--token', type=str, help='value of JWT token')
     parser.add_argument('-d', '--root-directory', type=str, default='{game}', help='default is `pwd`/{game}, which can generate "./LRCTF 2024"')
     parser.add_argument('-f', '--file-path', type=str, default='{category}/{chall}/{origin}', help='style of file path, default is {category}/{chall}/{origin}, which can generate "misc/sign in/attachment_deadbeef.zip"; ends with "{origin}" to keep extension suffix')
 
@@ -212,17 +201,19 @@ def arg_parse():
     args = parser.parse_args()
 
     if args.url is None:
-        args.url = input('\nEnter game URL here, e.g.\n\thttps://example.com/games/1/challenges\n\thttps://example.com/games/1\n').strip()
+        args.url = input('\nEnter game URL here, e.g.\n\thttps://challenge.xctf.org.cn/page/mg/ct/contest/flag/0123456789abcdef0123456789abcdef/ContestPage\n').strip()
     args.url = args.url.split(' ')[0] \
-                       .replace('/challenges', '') \
-                       .replace('/scoreboard', '') \
-                       .replace('/games/', '/api/game/') \
+                       .replace('page/mg/ct/contest/flag/', 'api/ct/web/jeopardy_race/race/') \
+                       .replace('/ContestPage', '') \
+                       .replace('/GuidePage', '') \
+                       .replace('/RankList', '') \
+                       .replace('/TrendPage', '') \
                        .rstrip('/')
-    # https://example.com/api/game/1
+    # https://challenge.xctf.org.cn/api/ct/web/jeopardy_race/race/0123456789abcdef0123456789abcdef
 
     if args.token is None:
-        args.token = input('\nPaste Local Storage account.token value here: ').strip()
-    args.token = args.token.replace('Bearer ', '').strip()
+        args.token = input('\nPaste JWT token value here: ').strip()
+    args.token = args.token.replace('JWT ', '').strip()
 
     args.max_size = args.max_size * 1024 * 1024 if args.max_size > 0 else float('inf')
 

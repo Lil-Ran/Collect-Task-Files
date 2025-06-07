@@ -96,7 +96,7 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
         headers_range = headers.copy()
         headers_range['Range'] = 'bytes=0-10'
 
-        response = requests.get(url_file_content, headers=headers_range)
+        response = requests.get(url_file_content, headers=headers_range, stream=True)
         if response.status_code not in (200, 206):
             print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
             return
@@ -107,6 +107,11 @@ def get_one_chall(args, id: int, headers: dict, game_title: str):
             raise RemoteURLPointsToHTML
 
         origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+        if origin_size == -1:
+            try:
+                origin_size = int(response.headers['Content-Length'])
+            except:
+                origin_size = -1
         if origin_size != -1 and origin_size > args.max_size:
             print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
             return
@@ -218,7 +223,7 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
         headers_range = headers.copy()
         headers_range['Range'] = 'bytes=0-10'
 
-        response = requests.get(url_file_content, headers=headers_range)
+        response = requests.get(url_file_content, headers=headers_range, stream=True)
         if response.status_code not in (200, 206):
             print('❌', f'{category}/{name}'.ljust(24), f'Failed to get attachment info from {url_file_content}, status code: {response.status_code}')
             return
@@ -228,6 +233,11 @@ def get_one_chall_download_error(args, id: int, headers: dict, game_title: str):
             # not return
 
         origin_size = int(response.headers.get('Content-Range', '0-0/-1').split('/')[-1])
+        if origin_size == -1:
+            try:
+                origin_size = int(response.headers['Content-Length'])
+            except:
+                origin_size = -1
         if origin_size != -1 and origin_size > args.max_size:
             print('🤯', f'{category}/{name}'.ljust(24), f'is too large ({format(origin_size, ",")} bytes)')
             return
