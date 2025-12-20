@@ -95,8 +95,8 @@ def get_one_chall(args, object, headers: dict, game_title: str):
     category = object['direction'].lower()
     content = response_data['desc']
 
-    if category not in args.allowlist:
-        return
+    # if category not in args.allowlist:
+    #     return
 
     # challenge README.md content
     file_path, exist_flag = get_absolute_path(args, game_title, category, name, 'README.md')
@@ -184,19 +184,19 @@ def arg_parse():
     parser.add_argument('-s', '--max-size', type=float, default=50.0, help='max file size in MB, larger than this will be skipped, default is 50.0, set to 0 to disable')
     parser.add_argument('-o', '--overwrite', action="store_true", help='if specified, existing files will be replaced instead of skipped')
 
-    tag_group = parser.add_argument_group('category options, default is ALL, you can specify like -mwp')
-    tag_group.add_argument('-E', '--except-mode', action="store_true", help='e.g. -p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
-    tag_group.add_argument('-m', '--misc', action='store_true')
-    tag_group.add_argument('-c', '--crypto', action='store_true')
-    tag_group.add_argument('-p', '--pwn', action='store_true')
-    tag_group.add_argument('-w', '--web', action='store_true')
-    tag_group.add_argument('-r', '--reverse', action='store_true')
-    tag_group.add_argument('--blockchain', action='store_true')
-    tag_group.add_argument('--forensics', action='store_true')
-    tag_group.add_argument('--hardware', action='store_true')
-    tag_group.add_argument('--mobile', action='store_true')
-    tag_group.add_argument('--ppc', action='store_true')
-    tag_group.add_argument('--ai', action='store_true')
+    # tag_group = parser.add_argument_group('category options, default is ALL, you can specify like -mwp')
+    # tag_group.add_argument('-E', '--except-mode', action="store_true", help='e.g. -p means ONLY download pwn, while -E -p means download everything else EXCEPT pwn')
+    # tag_group.add_argument('-m', '--misc', action='store_true')
+    # tag_group.add_argument('-c', '--crypto', action='store_true')
+    # tag_group.add_argument('-p', '--pwn', action='store_true')
+    # tag_group.add_argument('-w', '--web', action='store_true')
+    # tag_group.add_argument('-r', '--reverse', action='store_true')
+    # tag_group.add_argument('--blockchain', action='store_true')
+    # tag_group.add_argument('--forensics', action='store_true')
+    # tag_group.add_argument('--hardware', action='store_true')
+    # tag_group.add_argument('--mobile', action='store_true')
+    # tag_group.add_argument('--ppc', action='store_true')
+    # tag_group.add_argument('--ai', action='store_true')
 
     args = parser.parse_args()
 
@@ -217,14 +217,14 @@ def arg_parse():
 
     args.max_size = args.max_size * 1024 * 1024 if args.max_size > 0 else float('inf')
 
-    category_list = ['misc', 'crypto', 'pwn', 'web', 'reverse', 'blockchain', 'forensics', 'hardware', 'mobile', 'ppc', 'ai']
-    allowlist = category_list.copy()
-    if any(getattr(args, category) for category in category_list):
-        for category in category_list:
-            if bool(getattr(args, category)) ^ (not args.except_mode):
-                allowlist.remove(category)
-    
-    args.allowlist = allowlist
+    # category_list = ['misc', 'crypto', 'pwn', 'web', 'reverse', 'blockchain', 'forensics', 'hardware', 'mobile', 'ppc', 'ai']
+    # allowlist = category_list.copy()
+    # if any(getattr(args, category) for category in category_list):
+    #     for category in category_list:
+    #         if bool(getattr(args, category)) ^ (not args.except_mode):
+    #             allowlist.remove(category)
+
+    # args.allowlist = allowlist
     # for category in category_list:
     #     delattr(args, category)
 
