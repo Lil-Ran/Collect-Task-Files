@@ -6,6 +6,15 @@ import sys
 from urllib3.exceptions import NewConnectionError, MaxRetryError
 # import traceback
 
+def parse_size(size_int):
+    if size_int < 1024:
+        return f'{size_int} B'
+    elif size_int < 1024**2:
+        return f'{size_int/1024:.2f} KB'
+    elif size_int < 1024**3:
+        return f'{size_int/1024**2:.2f} MB'
+    else:
+        return f'{size_int/1024**3:.2f} GB'
 
 def main():
     args = arg_parse()
@@ -127,7 +136,7 @@ def get_one_chall(args, id: str, headers: dict, game_title: str, portal_id: str)
     # download attachment
     fp = open(local_path, 'wb')
 
-    url_file_content = f'https://ctf.junior.nu1l.com/api/competitions/{portal_id}/challenges/{id}/attachments:download?token={args.token}'
+    url_file_content = f'{args.url}/competitions/{portal_id}/challenges/{id}/attachments:download?token={args.token}'
     response = requests.get(url_file_content, headers=headers, stream=True)
     got_size = 0
     for chunk in response.iter_content(chunk_size=65536):
@@ -138,7 +147,7 @@ def get_one_chall(args, id: str, headers: dict, game_title: str, portal_id: str)
                 print('\r📥',
                     f'{category}/{name}'.ljust(24),
                     '>' * min(got_size*40//size, 40) + '_' * (40 - got_size*40//size),
-                    f'{got_size}/{size} bytes',
+                    f'{parse_size(got_size).ljust(9)} / {parse_size(size).ljust(9)}',
                     end='')
             else:
                 print('\r📥',
@@ -149,7 +158,7 @@ def get_one_chall(args, id: str, headers: dict, game_title: str, portal_id: str)
     fp.close()
     print('\r✅',
         f'{category}/{name}'.ljust(24),
-        f'saved to {local_path} ({format(got_size, ",")} bytes)',
+        f'saved to {local_path} ({parse_size(got_size)})',
         '[overwritten]' if exist_flag else '')
 
 
